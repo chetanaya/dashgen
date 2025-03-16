@@ -29,3 +29,4 @@ scikit-learn==1.6.1
 streamlit==1.43.2
 watchdog==6.0.0
 scipy==1.15.2
+statsmodels==0.14.4

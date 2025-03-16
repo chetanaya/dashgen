@@ -9,6 +9,8 @@ from modules.preprocessing import render_preprocessing_interface
 from modules.business_understanding import render_business_understanding
 from modules.analysis import render_analysis_interface
 from modules.visualization import render_visualization_interface
+from modules.dashboard_assembly import render_dashboard_assembly
+from modules.export import render_export_interface
 from utils.data_utils import apply_preprocessing
 
 
@@ -84,6 +86,10 @@ def handle_preprocessing_step():
                 # Store preprocessing steps
                 for step in preprocessing_steps:
                     session.add_preprocessing_step(step)
+
+                # Refresh profile to capture new column types after preprocessing
+                updated_profile = run_data_profiling(processed_df)
+                session.set_profile(updated_profile)
 
                 st.success("Preprocessing applied successfully!")
 
@@ -180,6 +186,72 @@ def handle_visualization_step():
         st.rerun()
 
 
+def handle_dashboard_assembly_step():
+    """Handle the dashboard assembly step."""
+    # Ensure we have data and visualizations
+    if st.session_state.dataset is None or not st.session_state.visualizations:
+        st.error("Please complete the previous steps first.")
+        if st.button("Go to Visualization Generation"):
+            st.session_state.step = "visualization_generation"
+            st.rerun()
+        return
+
+    # Render dashboard assembly interface
+    dashboard_config = render_dashboard_assembly(
+        df=st.session_state.dataset,
+        visualizations=st.session_state.visualizations,
+        business_context=st.session_state.business_context,
+    )
+
+    if dashboard_config is not None:
+        # Store dashboard configuration
+        session = SessionState()
+        session.set_dashboard_config(dashboard_config)
+
+        # Move to next step
+        st.session_state.step = "export"
+        st.rerun()
+
+
+def handle_export_step():
+    """Handle the export step."""
+    # Ensure we have dashboard configuration
+    if st.session_state.dataset is None or not st.session_state.dashboard_config:
+        st.error("Please complete the Dashboard Assembly step first.")
+        if st.button("Go to Dashboard Assembly"):
+            st.session_state.step = "dashboard_assembly"
+            st.rerun()
+        return
+
+    # Render export interface
+    export_completed = render_export_interface(
+        dashboard_config=st.session_state.dashboard_config,
+        visualizations=st.session_state.visualizations,
+        business_context=st.session_state.business_context,
+        analyses=st.session_state.analyses,
+    )
+
+    if export_completed:
+        # Show completion message
+        st.success(
+            "🎉 Congratulations! You've successfully completed the dashboard generation process."
+        )
+
+        # Provide option to start over
+        if st.button("Start a New Dashboard"):
+            # Reset session state
+            for key in list(st.session_state.keys()):
+                if key != "initialized":
+                    del st.session_state[key]
+
+            # Initialize new session
+            session = SessionState()
+
+            # Go back to upload step
+            st.session_state.step = "upload"
+            st.rerun()
+
+
 def main():
     """Main application entry point."""
     # Initialize session state
@@ -204,19 +276,33 @@ def main():
 
             # Enable navigation based on progress
             disabled_options = []
+            current_step = st.session_state.step
+            current_step_index = -1
 
+            # Find current step index
+            for i, option in enumerate(nav_options):
+                if option.lower().replace(" ", "_") == current_step:
+                    current_step_index = i
+                    break
+
+            # Disable steps that come after unreached milestones
             if st.session_state.profile is None:
                 disabled_options.extend(nav_options[1:])
-            elif not st.session_state.preprocessing:
+            elif not st.session_state.preprocessing and current_step_index < 1:
                 disabled_options.extend(nav_options[2:])
-            elif not st.session_state.business_context:
+            elif not st.session_state.business_context and current_step_index < 2:
                 disabled_options.extend(nav_options[3:])
-            elif not st.session_state.analyses:
+            elif not st.session_state.analyses and current_step_index < 3:
                 disabled_options.extend(nav_options[4:])
-            elif not st.session_state.visualizations:
+            elif not st.session_state.visualizations and current_step_index < 4:
                 disabled_options.extend(nav_options[5:])
-            elif not st.session_state.dashboard_config:
+            elif not st.session_state.dashboard_config and current_step_index < 5:
                 disabled_options.extend(nav_options[6:])
+
+            # Always enable current and previous steps
+            for i in range(current_step_index + 1):
+                if nav_options[i] in disabled_options:
+                    disabled_options.remove(nav_options[i])
 
             # Show progress
             st.progress((nav_options.index(nav_options[0]) + 1) / len(nav_options))
@@ -243,15 +329,9 @@ def main():
     elif st.session_state.step == "visualization_generation":
         handle_visualization_step()
     elif st.session_state.step == "dashboard_assembly":
-        st.header("Dashboard Assembly")
-        st.info("This feature will be implemented next.")
-        # Provide a way to continue to the next step for now
-        if st.button("Continue to Export"):
-            st.session_state.step = "export"
-            st.rerun()
+        handle_dashboard_assembly_step()
     elif st.session_state.step == "export":
-        st.header("Export")
-        st.info("This feature will be implemented next.")
+        handle_export_step()
 
 
 if __name__ == "__main__":

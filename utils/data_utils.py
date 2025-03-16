@@ -177,7 +177,14 @@ def apply_preprocessing(df, steps):
             columns = step.get("columns", [])
 
             for col in columns:
-                result_df[col] = pd.to_datetime(result_df[col], errors="coerce")
+                try:
+                    # Make sure to store as datetime64 dtype
+                    result_df[col] = pd.to_datetime(result_df[col], errors="coerce")
+                    print(
+                        f"Converted {col} to datetime. New dtype: {result_df[col].dtype}"
+                    )
+                except Exception as e:
+                    print(f"Error converting {col} to datetime: {str(e)}")
 
         elif step_type == "standardization":
             columns = step.get("columns", [])

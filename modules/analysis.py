@@ -227,18 +227,31 @@ def run_analysis(df, analysis_config):
         for metric in metrics:
             values = time_df[metric].dropna()
             if len(values) > 1:
-                # Simple linear regression for trend
-                x = np.arange(len(values))
-                slope, intercept, r_value, p_value, std_err = stats.linregress(
-                    x, values
-                )
+                try:
+                    # Simple linear regression for trend
+                    x = np.arange(len(values))
+                    slope, intercept, r_value, p_value, std_err = stats.linregress(
+                        x, values
+                    )
 
-                trend_direction = "increasing" if slope > 0 else "decreasing"
-                trend_strength = abs(r_value)
+                    trend_direction = "increasing" if slope > 0 else "decreasing"
+                    trend_strength = abs(r_value)
 
-                trend_analysis.append(
-                    f"{metric} shows a {trend_direction} trend (correlation: {trend_strength:.2f})"
-                )
+                    trend_analysis.append(
+                        f"{metric} shows a {trend_direction} trend (correlation: {trend_strength:.2f})"
+                    )
+                except Exception as e:
+                    # Fallback if stats module fails
+                    print(f"Error in trend analysis: {str(e)}")
+                    # Simple trend detection without statsmodels
+                    first_val = values.iloc[0] if not pd.isna(values.iloc[0]) else 0
+                    last_val = values.iloc[-1] if not pd.isna(values.iloc[-1]) else 0
+                    trend_direction = (
+                        "increasing" if last_val > first_val else "decreasing"
+                    )
+                    trend_analysis.append(
+                        f"{metric} appears to be {trend_direction} over time"
+                    )
 
         results["summary"] = (
             "Time series analysis shows how metrics change over time. "
@@ -351,6 +364,10 @@ def run_analysis(df, analysis_config):
         dist_summary = []
 
         for metric in metrics:
+            # Skip if metric is not in dataframe (could be a summary stat name)
+            if metric not in df.columns:
+                continue
+
             # Basic distribution stats
             mean_val = df[metric].mean()
             median_val = df[metric].median()
@@ -368,25 +385,33 @@ def run_analysis(df, analysis_config):
                 f"{metric} has a {shape} distribution with mean {mean_val:.2f} and median {median_val:.2f}."
             )
 
-        results["data"] = df[metrics].describe()
+        results["data"] = (
+            df[metrics].describe()
+            if all(m in df.columns for m in metrics)
+            else pd.DataFrame()
+        )
         results["summary"] = (
             "Distribution analysis examines the spread and shape of your metrics. "
             + " ".join(dist_summary)
         )
 
-        # Create visualization - histogram
-        fig = go.Figure()
-        for metric in metrics:
-            fig.add_trace(go.Histogram(x=df[metric], name=metric, opacity=0.7))
+        # Create visualization - histogram for actual data columns only
+        valid_metrics = [m for m in metrics if m in df.columns]
+        if valid_metrics:
+            fig = go.Figure()
+            for metric in valid_metrics:
+                fig.add_trace(go.Histogram(x=df[metric], name=metric, opacity=0.7))
 
-        fig.update_layout(
-            barmode="overlay",
-            title="Distribution of Key Metrics",
-            xaxis_title="Value",
-            yaxis_title="Count",
-        )
+            fig.update_layout(
+                barmode="overlay",
+                title="Distribution of Key Metrics",
+                xaxis_title="Value",
+                yaxis_title="Count",
+            )
 
-        results["visualization"] = fig
+            results["visualization"] = fig
+        else:
+            results["visualization"] = None
 
     elif analysis_type == "grouping":
         # Grouped analysis

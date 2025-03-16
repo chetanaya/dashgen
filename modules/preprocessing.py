@@ -118,6 +118,9 @@ def render_preprocessing_interface(profile, df):
 
     # Preview button
     if st.button("Preview Changes") and selected_steps:
+        # Store selected steps in session state for access after preview
+        st.session_state.preview_steps = selected_steps
+
         with st.spinner("Applying preprocessing..."):
             # Apply preprocessing to get a preview
             preview_df = apply_preprocessing(df, selected_steps)
@@ -178,10 +181,13 @@ def render_preprocessing_interface(profile, df):
                         comparison = pd.concat([before_stats, after_stats], axis=1)
                         st.dataframe(comparison)
 
-            # Confirmation button
+            # Success message
             st.success("Preprocessing preview generated. Review the changes above.")
-            if st.button("Apply Changes and Continue"):
-                return selected_steps
+
+    # Confirmation button (outside of preview section)
+    if "preview_steps" in st.session_state and st.session_state.preview_steps:
+        if st.button("Apply Changes and Continue"):
+            return st.session_state.preview_steps
 
     # Skip button
     if st.button("Skip Preprocessing"):

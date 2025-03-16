@@ -299,7 +299,15 @@ def render_business_understanding(df, profile):
     st.subheader("Time Dimension")
     st.write("Identify your primary time dimension for trend analysis.")
 
+    # Get date columns from both profile and actual datetime columns in the DataFrame
     time_cols = auto_context["time_columns"]
+
+    # Also check directly for datetime columns in the DataFrame
+    datetime_cols = df.select_dtypes(include=["datetime64"]).columns.tolist()
+    for col in datetime_cols:
+        if col not in time_cols:
+            time_cols.append(col)
+
     time_dimension = None
 
     if time_cols:

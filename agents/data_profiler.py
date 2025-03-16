@@ -26,6 +26,11 @@ class DataProfilerAgent:
         # Get basic DataFrame information
         df_info = get_dataframe_info(df)
 
+        # Explicitly identify datetime columns
+        datetime_columns = df.select_dtypes(include=["datetime64"]).columns.tolist()
+        if datetime_columns:
+            df_info["date_candidates"] = datetime_columns
+
         # Convert sample of DataFrame to string for OpenAI analysis
         df_str = dataframe_to_str(df)
 
